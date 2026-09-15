@@ -1,0 +1,8 @@
+{
+  "name": "Masar HR",
+  "description": "نظام مسار لإدارة الموارد البشرية والرواتب والسلف والإجازات وتقييم الأداء ومؤشرات KPIs للمهن",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

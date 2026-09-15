@@ -6,8 +6,12 @@ import "@fontsource/tajawal/800.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "مسار | Masar HR",
-  description: "إدارة بيانات الموظفين والقروض والالتزامات وأرصدة الإجازات في الكويت.",
+  title: "Masar HR",
+  description: "نظام إدارة الموارد البشرية والرواتب والسلف وإجازات الموظفين",
+  openGraph: {
+    title: "Masar HR",
+    description: "نظام إدارة الموارد البشرية والرواتب والسلف وإجازات الموظفين",
+  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

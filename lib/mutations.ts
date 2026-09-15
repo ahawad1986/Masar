@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Employee, Finance, Payment, LeaveEntry, EmploymentEvent, PayrollMonth, Snapshot, Audit, balance, remaining, employeeSchema, dateSchema, validateEmployee, blankEmployee } from "./hr";
+import { Employee, Finance, Payment, LeaveEntry, EmploymentEvent, PayrollMonth, JobKpi, PerformanceEvaluation, Snapshot, Audit, balance, remaining, employeeSchema, dateSchema, validateEmployee, blankEmployee } from "./hr";
 
 export type Statement={sql:string;params:(string|number|null)[]};
 const uuid=z.string().uuid();
@@ -144,6 +144,119 @@ export function planMutation(s:Snapshot,raw:Record<string,unknown>,owner:string,
     const settings=z.object({companyName:z.string().trim().min(2).max(120),sector:z.enum(["غير محدد","القطاع الأهلي","القطاع الحكومي","قطاع آخر"]),alertDays:z.number().int().min(1).max(365),annualAllowance:z.number().min(0).max(365).multipleOf(0.5),policyNotes:z.string().max(3000),inputTypes:z.array(z.string().trim().min(1).max(120)).max(80).default([]),allowanceTypes:z.array(z.string().trim().min(1).max(120)).max(80).default([]),workforcePlans:z.array(z.object({id:z.string().max(80),department:z.string().trim().min(1).max(120),section:z.string().trim().max(120),job:z.string().trim().min(1).max(120),currentCount:z.number().int().min(0).max(100000),targetCount:z.number().int().min(0).max(100000),budgetFils:z.number().int().min(0).max(999999999999)})).max(500).default([]),housingSystemUrl:z.string().trim().max(500).default(""),aiQuickPrompt:z.string().max(1000).default(""),securityPolicy:z.string().max(3000).default(""),workflowRules:z.string().max(5000).default(""),companies:z.array(z.string().trim().min(1).max(120)).max(20).default([]),currencies:z.array(z.string().trim().min(1).max(12)).max(10).default(["KWD"])}).parse(raw.settings);
     stmt("UPDATE workspaces SET settings=? WHERE owner=?",JSON.stringify(settings),owner);
     event.summary="تحديث إعدادات المنشأة";event.changes=[{name:"الإعدادات",before:s.settings,after:settings}];
+  } else if(raw.action==="jobKpi.save"){
+    const schema=z.object({
+      id:z.string().uuid().optional(),
+      job:z.string().trim().min(1,"المهنة / الوظيفة مطلوبة").max(120),
+      title:z.string().trim().min(2,"اسم المؤشر مطلوب").max(160),
+      description:z.string().max(1000).default(""),
+      target:z.string().trim().max(100).default("100%"),
+      weight:z.number().min(1).max(100),
+      unit:z.string().trim().max(50).default("%"),
+    });
+    const data=schema.parse(raw.kpi);
+    const id=data.id||crypto.randomUUID();
+    const before=s.jobKpis.find(k=>k.id===id);
+    const kpi:JobKpi={
+      id,
+      job:data.job,
+      title:data.title,
+      description:data.description||"",
+      target:data.target||"100%",
+      weight:data.weight,
+      unit:data.unit||"%",
+      createdAt:before?.createdAt||at,
+      updatedAt:at
+    };
+    stmt("INSERT INTO job_kpis (id,owner,job,data) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET job=excluded.job,data=excluded.data WHERE job_kpis.owner=excluded.owner",kpi.id,owner,kpi.job,JSON.stringify(kpi));
+    event.summary=(before?"تعديل مؤشر أداء: ":"إضافة مؤشر أداء: ")+kpi.title+" للمهنة: "+kpi.job;
+    event.changes=[{name:kpi.title,before:before||null,after:kpi}];
+  } else if(raw.action==="jobKpi.delete"){
+    const id=uuid.parse(raw.id);
+    const target=s.jobKpis.find(k=>k.id===id);
+    if(!target)throw Error("مؤشر الأداء غير موجود");
+    stmt("DELETE FROM job_kpis WHERE id=? AND owner=?",id,owner);
+    event.summary="حذف مؤشر أداء: "+target.title+" للمهنة: "+target.job;
+    event.changes=[{name:target.title,before:target,after:null}];
+  } else if(raw.action==="evaluation.save"){
+    const schema=z.object({
+      id:z.string().uuid().optional(),
+      employeeId:uuid,
+      evaluationYear:z.number().int().min(1970).max(2100).optional(),
+      isHistorical:z.boolean().default(false),
+      evaluator:z.string().trim().min(1,"اسم المقيّم مطلوب").max(120),
+      supervisorName:z.string().max(120).optional(),
+      supervisorDate:z.string().optional(),
+      supervisorNotes:z.string().max(2000).optional(),
+      departmentHeadName:z.string().max(120).optional(),
+      departmentHeadDate:z.string().optional(),
+      departmentHeadNotes:z.string().max(2000).optional(),
+      period:z.string().trim().min(1,"فترة التقييم مطلوبة").max(100),
+      date:date,
+      status:z.enum(["مسودة","بانتظار_مراجعة_المدير","معتمد","يحتاج_تعديل","قيد المراجعة"]).default("بانتظار_مراجعة_المدير"),
+      kpiScores:z.array(z.object({
+        kpiId:z.string().optional(),
+        title:z.string().trim().min(1),
+        target:z.string().optional(),
+        weight:z.number().min(0).max(100),
+        score:z.number().min(0).max(100),
+        actual:z.string().optional(),
+        notes:z.string().optional(),
+      })).min(1,"يجب تضمين مؤشر أداء واحد على الأقل في التقييم"),
+      rawScore:z.number().min(0).max(100).optional(),
+      penaltiesCount:z.number().int().min(0).max(100).default(0),
+      penaltyDeductionPercent:z.number().min(0).max(100).default(0),
+      penaltyDetails:z.string().max(2000).default(""),
+      overallScore:z.number().min(0).max(100),
+      rating:z.string().max(100),
+      strengths:z.string().max(2000).default(""),
+      improvements:z.string().max(2000).default(""),
+      recommendations:z.string().max(2000).default(""),
+      notes:z.string().max(2000).default(""),
+    });
+    const data=schema.parse(raw.evaluation);
+    const emp=employee(data.employeeId);
+    const id=data.id||crypto.randomUUID();
+    const before=s.evaluations.find(ev=>ev.id===id);
+    const evaluation:PerformanceEvaluation={
+      ...data,
+      id,
+      createdAt:before?.createdAt||at,
+      updatedAt:at,
+    };
+    stmt("INSERT INTO performance_evaluations (id,owner,employee_id,data) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET employee_id=excluded.employee_id,data=excluded.data WHERE performance_evaluations.owner=excluded.owner",evaluation.id,owner,evaluation.employeeId,JSON.stringify(evaluation));
+    event.summary=(before?"تعديل تقييم أداء: ":"تسجيل تقييم أداء: ")+emp.name+" ("+evaluation.period+")";
+    event.changes=[{name:emp.name+" - "+evaluation.period,before:before||null,after:evaluation}];
+  } else if(raw.action==="evaluation.approve"){
+    const id=uuid.parse(raw.id||raw.evaluationId);
+    const target=s.evaluations.find(ev=>ev.id===id);
+    if(!target)throw Error("التقييم غير موجود");
+    const managerName=z.string().trim().min(1,"اسم مدير الإدارة مطلوب").max(120).parse(raw.departmentHeadName||actor);
+    const managerNotes=z.string().max(2000).optional().parse(raw.departmentHeadNotes||"");
+    const decision=z.enum(["معتمد","يحتاج_تعديل"]).default("معتمد").parse(raw.decision||"معتمد");
+    const emp=s.employees.find(e=>e.id===target.employeeId);
+    const updated:PerformanceEvaluation={
+      ...target,
+      status:decision,
+      departmentHeadName:managerName,
+      departmentHeadDate:raw.departmentHeadDate?String(raw.departmentHeadDate):(raw.date?String(raw.date):at.slice(0,10)),
+      departmentHeadNotes:managerNotes||target.departmentHeadNotes||"",
+      penaltyDeductionPercent:raw.penaltyDeductionPercent!==undefined?Number(raw.penaltyDeductionPercent):target.penaltyDeductionPercent,
+      overallScore:raw.overallScore!==undefined?Number(raw.overallScore):target.overallScore,
+      rating:raw.rating?String(raw.rating):target.rating,
+      updatedAt:at,
+    };
+    stmt("INSERT INTO performance_evaluations (id,owner,employee_id,data) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET employee_id=excluded.employee_id,data=excluded.data WHERE performance_evaluations.owner=excluded.owner",updated.id,owner,updated.employeeId,JSON.stringify(updated));
+    event.summary=(decision==="معتمد"?"اعتماد وتأكيد تقييم أداء: ":"إعادة تقييم أداء للتعديل: ")+(emp?.name||"موظف")+" ("+target.period+") بواسطة "+managerName;
+    event.changes=[{name:(emp?.name||"موظف")+" - "+target.period,before:target,after:updated}];
+  } else if(raw.action==="evaluation.delete"){
+    const id=uuid.parse(raw.id);
+    const target=s.evaluations.find(ev=>ev.id===id);
+    if(!target)throw Error("التقييم غير موجود");
+    const emp=s.employees.find(e=>e.id===target.employeeId);
+    stmt("DELETE FROM performance_evaluations WHERE id=? AND owner=?",id,owner);
+    event.summary="حذف تقييم أداء: "+(emp?.name||target.employeeId)+" ("+target.period+")";
+    event.changes=[{name:target.period,before:target,after:null}];
   } else throw Error("عملية غير مدعومة");
   stmt("INSERT INTO audit (id,owner,at,data) VALUES (?,?,?,?)",event.id,owner,at,JSON.stringify(event));
   return {statements,event};

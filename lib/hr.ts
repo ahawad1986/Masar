@@ -29,12 +29,75 @@ export type LeaveEntry = {id:string; employeeId:string; kind:"annual"|"holiday";
 export type EmploymentEvent={id:string;employeeId:string;date:string;type:string;oldValue:string;newValue:string;decisionNo:string;reason:string;notes:string;actor:string;createdAt:string};
 export type PayrollMonth={id:string;month:string;title:string;deductionsFils:number;notes:string;actor:string;closedAt:string;createdAt:string};
 export type Audit = {id:string; at:string; actor:string; action:string; summary:string; changes?:{name:string;before:unknown;after:unknown}[]};
+export type JobKpi = {
+  id: string;
+  job: string;
+  title: string;
+  description: string;
+  target: string;
+  weight: number;
+  unit: string;
+  createdAt: string;
+  updatedAt: string;
+};
+export type KpiScoreItem = {
+  kpiId?: string;
+  title: string;
+  target?: string;
+  weight: number;
+  score: number;
+  actual?: string;
+  notes?: string;
+};
+export type PerformanceEvaluation = {
+  id: string;
+  employeeId: string;
+  evaluationYear?: number;
+  isHistorical?: boolean;
+  evaluator: string; // المشرف المباشر
+  supervisorName?: string;
+  supervisorDate?: string;
+  supervisorNotes?: string;
+  departmentHeadName?: string;
+  departmentHeadDate?: string;
+  departmentHeadNotes?: string;
+  period: string;
+  date: string;
+  status: "مسودة" | "بانتظار_مراجعة_المدير" | "معتمد" | "يحتاج_تعديل" | "قيد المراجعة";
+  kpiScores: KpiScoreItem[];
+  rawScore?: number;
+  penaltiesCount?: number;
+  penaltyDeductionPercent?: number;
+  penaltyDetails?: string;
+  overallScore: number;
+  rating: string;
+  strengths?: string;
+  improvements?: string;
+  recommendations?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
 export type WorkforcePlan={id:string;department:string;section:string;job:string;currentCount:number;targetCount:number;budgetFils:number};
 export type Settings = {companyName:string; sector:string; alertDays:number; annualAllowance:number; policyNotes:string; inputTypes:string[]; allowanceTypes:string[]; workforcePlans:WorkforcePlan[]; housingSystemUrl:string; aiQuickPrompt:string; securityPolicy:string; workflowRules:string; companies:string[]; currencies:string[]};
-export type Snapshot = {revision:number; employees:Employee[]; finances:Finance[]; payments:Payment[]; leaves:LeaveEntry[]; history:EmploymentEvent[]; payrollMonths:PayrollMonth[]; audit:Audit[]; settings:Settings; access?:AccessContext; members?:UserMember[]};
+export type Snapshot = {revision:number; employees:Employee[]; finances:Finance[]; payments:Payment[]; leaves:LeaveEntry[]; history:EmploymentEvent[]; payrollMonths:PayrollMonth[]; jobKpis:JobKpi[]; evaluations:PerformanceEvaluation[]; audit:Audit[]; settings:Settings; access?:AccessContext; members?:UserMember[]};
 export const defaultSettings:Settings = {companyName:"مساحة العمل",sector:"غير محدد",alertDays:60,annualAllowance:0,policyNotes:"",inputTypes:["غرامة تأخير","عقوبة إدارية","تكلفة أضرار","خصم غياب","خصم تأخير","اشتراك طبي","اشتراك نقابي","نفقة"],allowanceTypes:["بدل سكن","بدل انتقال","بدل هاتف","بدل طبيعة عمل","بدل طعام"],workforcePlans:[],housingSystemUrl:"",aiQuickPrompt:"",securityPolicy:"إغلاق الجلسة عند انتهاء جلسة تسجيل الدخول في ChatGPT/Sites. لا يخزّن مسار كلمات مرور داخلية.",workflowRules:"مسارات الاعتماد والقواعد قابلة للتوثيق هنا: القروض، الإجازات، العقوبات، المكافآت، التوقيع، والتصعيد.",companies:["الشركة الرئيسية"],currencies:["KWD"]};
 export const blankEmployee = ():Employee=>({id:crypto.randomUUID(),photoDataUrl:"",code:"",name:"",nameEn:"",department:"",branch:"",unit:"",job:"",jobEn:"",nationality:"",religion:"",civilId:"",passport:"",phone:"",address:"",email:"",birthDate:"",gender:"",maritalStatus:"",qualification:"",grade:"",contractType:"",bankName:"",bankAccount:"",managerName:"",housingCode:"",housingLink:"",startDate:"",probationEnd:"",contractEnd:"",civilExpiry:"",residencyExpiry:"",passportExpiry:"",officialLastDate:"",payrollRemoval:"",statusDetail:"",status:"على رأس العمل",salaryFils:0,allowanceType:"",allowancesFils:0,annualOpening:0,holidayOpening:0,notes:"",createdAt:"",updatedAt:""});
-export const emptySnapshot:Snapshot={revision:0,employees:[],finances:[],payments:[],leaves:[],history:[],payrollMonths:[],audit:[],settings:defaultSettings};
+export const emptySnapshot:Snapshot={revision:0,employees:[],finances:[],payments:[],leaves:[],history:[],payrollMonths:[],jobKpis:[],evaluations:[],audit:[],settings:defaultSettings};
+export function calculateOverallScore(scores: KpiScoreItem[], penaltyDeductionPercent: number = 0): { rawScore: number; overallScore: number; rating: string } {
+  if (!scores.length) return { rawScore: 0, overallScore: 0, rating: "غير محدد" };
+  const totalWeight = scores.reduce((sum, s) => sum + (Number(s.weight) || 0), 0);
+  const weightedSum = scores.reduce((sum, s) => sum + ((Number(s.score) || 0) * (Number(s.weight) || 0)), 0);
+  const raw = totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 10) / 10 : 0;
+  const deduction = Math.max(0, Number(penaltyDeductionPercent) || 0);
+  const finalScore = Math.max(0, Math.round((raw - deduction) * 10) / 10);
+  let rating = "يحتاج إلى تحسين";
+  if (finalScore >= 90) rating = "ممتاز (Excellent)";
+  else if (finalScore >= 80) rating = "جيد جداً (Very Good)";
+  else if (finalScore >= 70) rating = "جيد (Good)";
+  else if (finalScore >= 60) rating = "مقبول (Fair)";
+  return { rawScore: raw, overallScore: finalScore, rating };
+}
 export function balance(e:Employee, leaves:LeaveEntry[],kind:"annual"|"holiday"){return (kind==="annual"?e.annualOpening:e.holidayOpening)+leaves.filter(l=>l.employeeId===e.id&&l.kind===kind).reduce((n,l)=>n+l.days,0);}
 export function remaining(f:Finance,payments:Payment[]){return f.amountFils-payments.filter(p=>p.financeId===f.id).reduce((n,p)=>n+p.amountFils,0);}
 export const kwd=(fils:number)=>new Intl.NumberFormat("en-KW",{minimumFractionDigits:3,maximumFractionDigits:3}).format(fils/1000);

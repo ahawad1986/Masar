@@ -30,8 +30,9 @@ export default function UsersPanel({s,busy,commit}:{s:Snapshot;busy:boolean;comm
 function blankMember():UserMember{return {id:"",email:"",userId:null,name:"",role:"viewer",permissions:[],active:true,createdAt:"",updatedAt:""};}
 
 function MemberDialog({member,close,busy,commit}:{member:UserMember|null;close:()=>void;busy:boolean;commit:Commit}){
+  const [prevMember,setPrevMember]=useState<UserMember|null>(member);
   const [v,setV]=useState<UserMember>(()=>member||blankMember()),[error,setError]=useState("");
-  useMemo(()=>setV(member||blankMember()),[member]);
+  if(member!==prevMember){setPrevMember(member);setV(member||blankMember());}
   if(!member)return null;
   const perms=v.role==="custom"?v.permissions:permissionsFor(v.role);
   const toggle=(p:Permission,checked:boolean)=>setV({...v,role:"custom",permissions:checked?[...new Set([...v.permissions,p])]:v.permissions.filter(x=>x!==p)});

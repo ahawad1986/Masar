@@ -3,7 +3,7 @@ import type { Workbook, CellValue } from "exceljs";
 const ignoredImportFields=new Set<string>(["probationEnd","contractEnd","civilExpiry","residencyExpiry","passportExpiry"]);
 export const employeeImportFields=employeeFields.filter(f=>!ignoredImportFields.has(f.key));
 
-async function workbook(){const module=await import("exceljs");const Excel=module.default||module;return new Excel.Workbook();}
+async function workbook(){const excelModule=await import("exceljs");const Excel=(excelModule as any).default||excelModule;return new Excel.Workbook();}
 function addSheet(wb:Workbook,name:string,headers:string[],rows:unknown[][]){
   const sheet=wb.addWorksheet(name,{views:[{rightToLeft:true,state:"frozen",ySplit:1}]});
   sheet.addRow(headers);for(const row of rows)sheet.addRow(row);
@@ -34,6 +34,41 @@ export async function exportWorkbook(s:Snapshot,kind="all"){
     const labels:Record<string,string>={...Object.fromEntries(employeeFields.map(f=>[f.key,f.label])),loanType:"نوع القرض/الخصم",installmentsCount:"عدد الأقساط",firstInstallmentDate:"تاريخ أول قسط",lender:"الجهة الممولة",deductionMode:"طريقة الخصم",deductionPercent:"نسبة الخصم",priority:"الأولوية",paused:"إيقاف مؤقت",amountFils:"المبلغ د.ك",installmentFils:"القسط د.ك",balance:"الرصيد",days:"الأيام",reason:"السبب",date:"التاريخ",title:"الوصف",kind:"النوع",companyName:"المنشأة",sector:"القطاع",alertDays:"نافذة التنبيه",annualAllowance:"الاستحقاق المرجعي",policyNotes:"ملاحظات السياسة"};
     for(const a of s.audit)for(const c of a.changes||[]){const before=(c.before||{}) as Record<string,unknown>,after=(c.after||{}) as Record<string,unknown>;for(const key of new Set([...Object.keys(before),...Object.keys(after)])){if(!labels[key]||JSON.stringify(before[key])===JSON.stringify(after[key]))continue;const val=(v:unknown)=>v==null?"":key.endsWith("Fils")?Number(v)/1000:typeof v==="object"?JSON.stringify(v):v;details.push([a.at,a.summary,c.name,labels[key],val(before[key]),val(after[key])]);}}
     addSheet(wb,"تفاصيل التغييرات",["التاريخ","العملية","السجل","الحقل","قبل","بعد"],details);
+  }
+  if(kind==="all"||kind==="performance"||kind==="evaluations"){
+    addSheet(wb,"تقييمات الأداء",["الرقم الوظيفي","الموظف","الإدارة","الوظيفة","سنة التقييم","فترة التقييم","تاريخ التقييم","نوع السجل","درجة المؤشرات %","نسبة خصم العقوبات %","عدد العقوبات","بيان العقوبات","النتيجة النهائية %","التقدير العام","حالة الاعتماد","المشرف المباشر","تاريخ المشرف","ملاحظات المشرف","مدير الإدارة","تاريخ اعتماد المدير","ملاحظات مدير الإدارة","نقاط القوة","مجالات التحسين","التوصيات","ملاحظات عامة"],(s.evaluations||[]).map(ev=>{
+      const e=s.employees.find(emp=>emp.id===ev.employeeId);
+      return [
+        e?.code,
+        e?.name,
+        e?.department,
+        e?.job,
+        ev.evaluationYear||"",
+        ev.period,
+        ev.date,
+        ev.isHistorical?"أرشيف تاريخي":"تقييم حالي",
+        (ev.rawScore!=null?ev.rawScore:ev.overallScore)+"%",
+        (ev.penaltyDeductionPercent||0)+"%",
+        ev.penaltiesCount||0,
+        ev.penaltyDetails||"",
+        ev.overallScore+"%",
+        ev.rating,
+        ev.status,
+        ev.supervisorName||ev.evaluator||"",
+        ev.supervisorDate||ev.date,
+        ev.supervisorNotes||"",
+        ev.departmentHeadName||"",
+        ev.departmentHeadDate||"",
+        ev.departmentHeadNotes||"",
+        ev.strengths||"",
+        ev.improvements||"",
+        ev.recommendations||"",
+        ev.notes||""
+      ];
+    }));
+    addSheet(wb,"مؤشرات الأداء للمهن",["المهنة / الوظيفة","المؤشر","الوصف والمعايير","المستهدف","الوزن %","وحدة القياس"],(s.jobKpis||[]).map(k=>[
+      k.job,k.title,k.description,k.target,k.weight+"%",k.unit||"%"
+    ]));
   }
   await download(wb,`Masar_${kind}_${today()}.xlsx`);
 }

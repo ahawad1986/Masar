@@ -14,6 +14,9 @@ export const permissionCatalog = [
   {id:"audit.view",label:"عرض سجل العمليات",group:"الإدارة"},
   {id:"settings.manage",label:"تعديل إعدادات المنشأة",group:"الإدارة"},
   {id:"users.manage",label:"إدارة المستخدمين والصلاحيات",group:"الإدارة"},
+  {id:"evaluations.conduct",label:"إجراء تقييم الأداء (المشرف المباشر)",group:"تقييم الأداء"},
+  {id:"evaluations.approve",label:"مراجعة وتأكيد تقييم الأداء (مدير الإدارة)",group:"تقييم الأداء"},
+  {id:"evaluations.manage",label:"إدارة مؤشرات المهن والتقييمات الشاملة (الموارد البشرية)",group:"تقييم الأداء"},
 ] as const;
 export type Permission=typeof permissionCatalog[number]["id"];
 export type Role="owner"|"admin"|"hr"|"accountant"|"viewer"|"custom";
@@ -21,7 +24,7 @@ export const roleLabels:Record<Role,string>={owner:"مالك التطبيق",adm
 export const allPermissions=permissionCatalog.map(p=>p.id);
 export const rolePermissions:Record<Exclude<Role,"owner"|"custom">,Permission[]>={
   admin:[...allPermissions],
-  hr:["employees.create","employees.update","employees.bulk","leaves.adjust","imports.run","exports.run","audit.view"],
+  hr:["employees.create","employees.update","employees.bulk","leaves.adjust","imports.run","exports.run","audit.view","evaluations.conduct","evaluations.approve","evaluations.manage"],
   accountant:["finance.create","finance.pay","imports.run","exports.run","audit.view"],
   viewer:[],
 };
@@ -61,6 +64,23 @@ export function authorizeAction(access:AccessContext,raw:Record<string,unknown>,
   else if(action==="payroll.close")needed.push("finance.create");
   else if(action==="settings.save")needed.push("settings.manage");
   else if(action==="member.save")needed.push("users.manage");
+  else if(action==="evaluation.save"){
+    const ev=raw.evaluation as Record<string,unknown>|undefined;
+    const isApproving=ev?.status==="معتمد";
+    if(isApproving){
+      if(!hasPermission(access,"evaluations.approve")&&!hasPermission(access,"evaluations.manage")){
+        throw new AccessError("مراجعة وتأكيد تقييم الأداء يتطلب صلاحية مدير الإدارة أو الإدارة العليا.");
+      }
+    }else{
+      if(!hasPermission(access,"evaluations.conduct")&&!hasPermission(access,"evaluations.approve")&&!hasPermission(access,"evaluations.manage")){
+        throw new AccessError("إجراء تقييم الأداء يتطلب صلاحية المشرف المباشر أو مدير الإدارة.");
+      }
+    }
+  }else if(action==="evaluation.approve"){
+    if(!hasPermission(access,"evaluations.approve")&&!hasPermission(access,"evaluations.manage")){
+      throw new AccessError("مراجعة وتأكيد التقييم يتطلب صلاحية مدير الإدارة.");
+    }
+  }else if(action==="jobKpi.save"||action==="jobKpi.delete"||action==="evaluation.delete")needed.push("evaluations.manage");
   else throw new AccessError("عملية غير مسموح بها.");
   if(needed.some(p=>!hasPermission(access,p)))throw new AccessError();
 }
