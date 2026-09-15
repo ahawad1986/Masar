@@ -1,0 +1,17 @@
+"use client";
+import { ReactNode, useId } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
+import { ChevronLeft, ChevronRight, FolderOpen, LoaderCircle } from "lucide-react";
+
+export function Choice({value,onChange,options,label,disabled=false}:{value:string;onChange:(v:string)=>void;options:(string|{value:string;label:string})[];label:string;disabled?:boolean}){
+  return <Select dir="rtl" value={value||"_empty"} onValueChange={v=>onChange(v==="_empty"?"":v)} disabled={disabled}><SelectTrigger aria-label={label} className="choice"><SelectValue placeholder={label}/></SelectTrigger><SelectContent position="popper">{options.map(o=>typeof o==="string"?{value:o,label:o}:o).map(o=><SelectItem key={o.value||"_empty"} value={o.value||"_empty"}>{o.label}</SelectItem>)}</SelectContent></Select>;
+}
+export function Field({label,children,hint,wide=false}:{label:string;children:ReactNode;hint?:string;wide?:boolean}){const id=useId();return <div className={"field "+(wide?"wide":"")}><label id={id}>{label}</label><div aria-labelledby={id}>{children}</div>{hint&&<small>{hint}</small>}</div>;}
+export function NoData({title="لا توجد سجلات بعد",description="ابدأ بإضافة أول سجل.",children,icon}: {title?:string;description?:string;children?:ReactNode;icon?:ReactNode}){return <Empty className="empty-state"><EmptyHeader><EmptyMedia className="empty-symbol">{icon||<FolderOpen/>}</EmptyMedia><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader>{children}</Empty>;}
+export function SaveButton({busy,children="حفظ البيانات"}:{busy:boolean;children?:ReactNode}){return <Button className="primary-button" type="submit" disabled={busy}>{busy&&<LoaderCircle className="spin" size={17}/>} {busy?"جارٍ الحفظ…":children}</Button>;}
+export function Pager({page,setPage,total,size=10}:{page:number;setPage:(p:number)=>void;total:number;size?:number}){const pages=Math.max(1,Math.ceil(total/size));return <div className="table-footer"><span>{total?`${(page-1)*size+1}–${Math.min(page*size,total)} من ${total}`:"0 سجل"}</span><Pagination aria-label="صفحات السجلات"><PaginationContent><PaginationItem><Button variant="outline" size="icon" aria-label="الصفحة السابقة" disabled={page<=1} onClick={()=>setPage(page-1)}><ChevronRight size={16}/></Button></PaginationItem><PaginationItem><span className="page-label">{page} / {pages}</span></PaginationItem><PaginationItem><Button variant="outline" size="icon" aria-label="الصفحة التالية" disabled={page>=pages} onClick={()=>setPage(page+1)}><ChevronLeft size={16}/></Button></PaginationItem></PaginationContent></Pagination></div>;}
+export function Avatar({name,small=false,src=""}:{name:string;small?:boolean;src?:string}){let hash=0;for(const c of name)hash+=c.charCodeAt(0);const colors=["violet","mint","peach","blue","pink"];return <span className={`avatar ${colors[hash%colors.length]} ${small?"small":""}`}>{src?<img src={src} alt="" loading="lazy"/>:name.split(" ").slice(0,2).map(x=>x[0]).join("")||"م"}</span>;}
+export function StatusBadge({status}:{status:string}){return <span className={"status "+(status==="على رأس العمل"?"active":status==="في إجازة"?"away":"ended")}>{status}</span>;}
