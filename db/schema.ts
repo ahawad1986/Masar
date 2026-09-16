@@ -46,3 +46,17 @@ export const payrollMonths = sqliteTable("payroll_months", {
   month: text("month").notNull(),
   data: text("data").notNull(),
 }, t => [uniqueIndex("idx_payroll_owner_month").on(t.owner, t.month)]);
+
+export const jobKpis = sqliteTable("job_kpis", {
+  id: text("id").primaryKey(),
+  owner: text("owner").notNull(),
+  job: text("job").notNull(),
+  data: text("data").notNull(),
+}, t => [index("idx_job_kpis_owner_job").on(t.owner, t.job)]);
+
+export const performanceEvaluations = sqliteTable("performance_evaluations", {
+  id: text("id").primaryKey(),
+  owner: text("owner").notNull(),
+  employeeId: text("employee_id").notNull(),
+  data: text("data").notNull(),
+}, t => [index("idx_evaluations_owner_employee").on(t.owner, t.employeeId)]);

@@ -49,7 +49,7 @@ check("employee template has headers only and instructions",()=>{assert.equal(wb
 await excel.downloadFinanceTemplate("loan");wb=new ExcelJS.Workbook();await wb.xlsx.load(await downloaded.arrayBuffer());
 check("financial template contains opening paid amount",()=>assert.equal(wb.worksheets[0].getCell("E1").value,"المسدد سابقا د.ك"));
 await excel.exportWorkbook(snapshot(),"all");wb=new ExcelJS.Workbook();await wb.xlsx.load(await downloaded.arrayBuffer());
-check("full workbook includes all ledgers and audit",()=>{assert.equal(wb.worksheets.length,9);assert.ok(wb.getWorksheet("الموظفون").getRow(2).values.includes("012345678901"));assert.equal(wb.getWorksheet("القروض والخصومات").getCell("I2").value,650.325);});
+check("full workbook includes all ledgers, performance reports, and audit",()=>{assert.equal(wb.worksheets.length,11);assert.ok(wb.getWorksheet("الموظفون").getRow(2).values.includes("012345678901"));assert.equal(wb.getWorksheet("القروض والخصومات").getCell("I2").value,650.325);});
 const file=new File([await downloaded.arrayBuffer()],"test.xlsx",{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const parsed=await excel.parseWorkbook(file);
 check("real XLSX parsing preserves civil IDs",()=>assert.ok(parsed[0].rows[0].includes("012345678901")));
 const badWb=new ExcelJS.Workbook();const sheet=badWb.addWorksheet("اختبار");sheet.addRow(["code","name"]);sheet.addRow(["T-1",{formula:'"test"',result:"test"}]);const badFile=new File([await badWb.xlsx.writeBuffer()],"formula.xlsx");await assert.rejects(()=>excel.parseWorkbook(badFile),/معادلات/);count++;console.log("PASS Excel formulas rejected before import");
