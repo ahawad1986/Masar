@@ -48,7 +48,7 @@ export function planMutation(s:Snapshot,raw:Record<string,unknown>,owner:string,
     event.summary="استبدال بيانات العمل واستيراد "+employees.length+" موظف";
     event.changes=[{name:"بيانات الموظفين",before:{employees:s.employees.length,finances:s.finances.length,payments:s.payments.length,leaves:s.leaves.length,history:s.history.length,payrollMonths:s.payrollMonths.length},after:{employees:employees.length,finances:0,payments:0,leaves:0,history:0,payrollMonths:0}}];
   } else if(raw.action==="employees.import"){
-    const rows=z.array(employeeSchema.partial().extend({code:employeeSchema.shape.code})).min(1).max(500).parse(raw.rows);
+    const rows=z.array(employeeSchema.partial().extend({code:employeeSchema.shape.code})).min(1).max(1000).parse(raw.rows);
     const mode=z.enum(["add","update"]).parse(raw.mode);
     const seen=new Set<string>();
     const result=[...s.employees];
